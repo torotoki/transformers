@@ -73,6 +73,7 @@ class MambaCache:
     Example:
 
         ```python
+        >>> import torch
         >>> from transformers import AutoTokenizer, MambaForCausalLM, MambaCache
 
         >>> model = MambaForCausalLM.from_pretrained("state-spaces/mamba-130m-hf")
@@ -81,9 +82,10 @@ class MambaCache:
         >>> inputs = tokenizer(text="My name is Mamba", return_tensors="pt")
 
         >>> # Prepare a cache class and pass it to model's forward
-        >>> past_key_values = MambaCache(config=model.config, max_batch_size=1, device=model.device, dtype=model.dtype)
-        >>> outputs = model(**inputs, past_key_values=past_key_values, use_cache=True)
-        >>> outputs.past_key_values
+        >>> cache_params = MambaCache(config=model.config, max_batch_size=1, device=model.device, dtype=model.dtype)
+        >>> cache_position = torch.arange(len(inputs["input_ids"][0]), device=model.device)  # sequence length
+        >>> outputs = model(**inputs, cache_params=cache_params, cache_position=cache_position, use_cache=True)
+        >>> outputs.cache_params
         MambaCache()
         ```
     """
@@ -140,7 +142,7 @@ class MambaCache:
         cache_position = cache_position.clamp(0, self.conv_kernel_size - 1)
 
         conv_state = conv_state.roll(shifts=-1, dims=-1)
-        conv_state[:, :, cache_position] = new_conv_state.to(device=conv_state.device, dtype=conv_state.dtype)
+        conv_state[:, :, cache_position.shape[0]] = new_conv_state.to(device=conv_state.device, dtype=conv_state.dtype)
         self.conv_states[layer_idx].zero_()
         self.conv_states[layer_idx] += conv_state
         return self.conv_states[layer_idx]
